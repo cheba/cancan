@@ -213,17 +213,32 @@ module CanCan
       @name || name_from_controller
     end
 
-    def resource_params
-      if @options[:class]
-        params_key = extract_key(@options[:class])
-        return @params[params_key] if @params[params_key]
-      end
-
-      resource_params_by_namespaced_name
+    def strong_parameters?
+      klass = ActionController.const_get 'Parameters'
+      return klass.is_a?(Class)
+    rescue
+      return false
     end
 
-    def resource_params_by_namespaced_name
-      @params[extract_key(namespaced_name)]
+    def resource_params
+      if (@options[:actions_with_params] || %w[create update]).include? @params[:action].to_s
+        params_key = extract_key(@options[:class] || namespaced_name)
+        if strong_parameters? || @options[:params]
+          if @options[:params] === true || @options[:params].blank?
+            params_method = "#{params_key}_params"
+          else
+            params_method =  @options[:params]
+          end
+
+          if @controller.send :respond_to?, params_method
+            @controller.send params_method
+          else
+            raise "Controller doesn't respond to #{params_method}"
+          end
+        else
+          @params[params_key]
+        end
+      end
     end
 
     def namespace
